@@ -14,7 +14,7 @@ body {
 
 #page-wraper {
     background: 
-url(../images/7jQpLf.jpg) 
+url(../images/wp2590330-light-blue-background.png) 
 no-repeat center center fixed;
     -webkit-background-size: cover;
     -moz-background-size: cover;
@@ -44,7 +44,7 @@ a:hover {
 p {
     font-size: 16px;
     line-height: 24px;
-    color: #fff;
+    color: #000;
 }
 
 h4 {
