@@ -145,7 +145,8 @@ html {
 }
 
 .menu .author-content h4 {
-    margin-bottom: 0px;
+  color: #fff;
+  font-weight: 700;
 }
 
 .menu .author-content span {
