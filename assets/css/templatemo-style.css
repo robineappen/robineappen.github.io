@@ -13,16 +13,12 @@ body {
 }
 
 #page-wraper {
-    background: 
-url(../images/wp2590330-light-blue-background.png) 
-no-repeat center center fixed;
-    -webkit-background-size: cover;
-    -moz-background-size: cover;
-    -o-background-size: cover;
-    background-size: cover;
-    width: 100%;
+  background-color: #59a3ba;
+  background-image: url("https://www.transparenttextures.com/patterns/45-degree-fabric-light.png");
+  background-repeat: repeat;
+  background-attachment: fixed;
+  background-position: center;
 }
-
 
 /* Basic */
 
