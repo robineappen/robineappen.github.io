@@ -40,8 +40,8 @@
               <li><a href="#section1">About Me</a></li>
               <li><a href="#section2">My Work</a></li>
               <li><a href="#section3">Publications</a></li>
-              <li><a href="#section4">Contact Me</a></li>
               <li><a href="#section5">Photos</a></li>
+              <li><a href="#section4">Contact Me</a></li>
             </ul>
           </nav>
           <div class="social-network">
@@ -54,20 +54,64 @@
             </ul>
           </div>
           <div class="copyright-text">
-            <p>Copyright 2019 Reflux Design</p>
+            <p>&copy; 2025 Robin Eappen</p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- About Me Section -->
-    <!-- (Previous about-me section code here, keeping as is) -->
+    <section class="section about-me" data-section="section1">
+      <div class="container">
+        <div class="section-heading text-left">
+          <h2>About Me</h2>
+          <div class="line-dec"></div>
+          <p>Hi! I'm <strong>Robin Eappen</strong>, a PhD researcher in <strong>astronomy and astrophysics</strong> at the <strong>University of Bonn</strong>, working under the supervision of <a href="https://astro.uni-bonn.de/~pavel/" target="_blank">Prof. Pavel Kroupa</a>. My research focuses on <strong>galaxy formation and evolution</strong> within the framework of <strong>Modified Newtonian Dynamics (MOND)</strong>.</p>
+          <p>Let there be light, and there was light. They tried the same with darkness (dark matter), but then came <a href="https://en.wikipedia.org/wiki/Mordehai_Milgrom" target="_blank">Milgrom</a> 😜</p>
+          <blockquote><em>"I began with fresh hopes and ambitions, seeking to explore and elucidate the surrounding mysteries. Yet, my fervent journey was abruptly halted by the so-called 'experts' in power. They scrutinized and demanded revisions that aligned with their narrative. I resisted succumbing entirely, making only a few changes. But unbeknownst to me, the essence of my work vanished. Ambitions and explorations were torn away, and now I find myself a cog driven by these 'experts'."</em></blockquote>
+          <blockquote><em>"In a world where the currency of value is often measured in coins and clout, the depth of artistry and scientific marvels sometimes evades the grasp of those solely chasing monetary and authoritative eminence. The richness of these disciplines, like elusive constellations, often remains veiled to the eyes fixated on material worth and dominance. Yet I, a mere mortal, am but a whisper in the symphony of voices, unable to echo a resounding opinion amidst the clamor."</em></blockquote>
+          <figure>
+            <img src="photos/galaxyhome.png" alt="Galaxy simulation image" style="width: 100%; height: auto;">
+            <figcaption style="text-align: center; font-size: 0.95em; margin-top: 0.5em;">Top panel: Surface projection plot of merged model galaxy from Eappen & Kroupa (2025)<br>Bottom panel: Surface projection plot of model galaxy from Eappen & Kroupa (2025)</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
 
     <!-- My Work Section -->
-    <!-- (Previous my-work section code here, keeping as is) -->
+    <section class="section my-work" data-section="section2">
+      <div class="container">
+        <div class="section-heading text-left">
+          <h2>My Work</h2>
+          <div class="line-dec"></div>
+          <p>My research journey explores the fascinating formation and evolution of galaxies under the framework of Modified Newtonian Dynamics (MOND), challenging the conventional dark matter paradigm.</p>
 
-    <!-- Publications Section -->
-    <section class="section publications" data-section="section3">
+          <p>In my first major study, <strong>"The formation of early-type galaxies in Milgromian Dynamics"</strong>, I simulated the monolithic collapse of early gas clouds in a MONDian universe. These simulations successfully recreated properties of observed early-type galaxies, showing that Milgromian gravity can naturally form elliptical galaxies with realistic structural and kinematic features.</p>
+          <figure>
+            <img src="photos/downsizing.jpeg" alt="Galaxy simulation image" style="width: 55%; height: auto;">
+            <figcaption style="text-align: center; font-size: 0.95em; margin-top: 0.5em;">SFT - mass relation illustrating galaxy formation efficiency</figcaption>
+          </figure>
+
+          <p>Building on this, my second study, <strong>"The formation of compact massive relic galaxies in MOND"</strong>, focused on the formation of compact massive relic galaxies — ancient, compact ellipticals that formed early in the universe and have remained relatively unchanged. My models reproduced key properties of these enigmatic galaxies, including high central velocity dispersions and small effective radii, without invoking mergers or exotic physics.</p>
+          <figure style="text-align: center;">
+            <div style="display: flex; justify-content: center; gap: 1em; flex-wrap: wrap;">
+              <img src="photos/Cr1.jpeg" alt="Rotational velocity" style="width: 48%; height: auto;">
+              <img src="photos/Cr2.jpeg" alt="Velocity dispersion" style="width: 48%; height: auto;">
+            </div>
+            <figcaption style="font-size: 0.95em; margin-top: 0.5em;">Rotational velocity and Velocity dispersion profiles of simulated relic galaxies</figcaption>
+          </figure>
+
+          <p>In my most recent work, <strong>"Scaling relations of early-type galaxies in MOND"</strong>, I extended my models to study scaling relations such as the fundamental plane and mass-size relations of ETGs. The findings show remarkable alignment with observational data, reinforcing MOND's robustness across different galactic environments.</p>
+          <figure>
+            <img src="photos/vrot.png" alt="Galaxy simulation image" style="width: 85%; height: auto;">
+            <figcaption style="text-align: center; font-size: 0.95em; margin-top: 0.5em;">Classical Vrot - ellipticity plot showcasing galaxy kinematics</figcaption>
+          </figure>
+
+          <p>These projects collectively advance the case for Milgromian dynamics, offering a credible alternative to dark matter theories in explaining galaxy-scale structures and behaviors.</p>
+        </div>
+      </div>
+    </section>
+     <section class="section publications" data-section="section3">
       <div class="container">
         <div class="section-heading text-left">
           <h2>Publications</h2>
@@ -109,11 +153,76 @@
       </div>
     </section>
 
-    <!-- Contact Me Section -->
-    <!-- (Previous contact section code here, keeping as is) -->
-
     <!-- Photos Section -->
-    <!-- (Previous photos section code here, keeping as is) -->
+    <section class="section photos" data-section="section5">
+      <div class="container">
+        <div class="section-heading text-left">
+          <h2>Conference Photos</h2>
+          <div class="line-dec"></div>
+          <p><strong>Epoch of Galaxy Quenching 2022</strong><br>
+            Kavli Institute, Cambridge University</p>
+
+          <div class="row">
+            <!-- Gallery images -->
+            <div class="col-md-4 col-sm-6 mb-4">
+              <a href="photos/Screenshot from 2025-04-05 01-54-23.png" data-lightbox="conference-gallery" data-title="Epoch of Galaxy Quenching 2022">
+                <img class="img-fluid" src="photos/Screenshot from 2025-04-05 01-54-23.png" alt="Conference Photo 1">
+              </a>
+            </div>
+            <div class="col-md-4 col-sm-6 mb-4">
+              <a href="photos/DSC04657.jpg" data-lightbox="conference-gallery" data-title="Epoch of Galaxy Quenching 2022">
+                <img class="img-fluid" src="photos/DSC04657.jpg" alt="Conference Photo 2">
+              </a>
+            </div>
+            <div class="col-md-4 col-sm-6 mb-4">
+              <a href="photos/DSC04662.jpg" data-lightbox="conference-gallery" data-title="Epoch of Galaxy Quenching 2022">
+                <img class="img-fluid" src="photos/DSC04662.jpg" alt="Conference Photo 3">
+              </a>
+            </div>
+            <div class="col-md-4 col-sm-6 mb-4">
+              <a href="photos/DSC04696.jpg" data-lightbox="conference-gallery" data-title="Epoch of Galaxy Quenching 2022">
+                <img class="img-fluid" src="photos/DSC04696.jpg" alt="Conference Photo 4">
+              </a>
+            </div>
+            <div class="col-md-4 col-sm-6 mb-4">
+              <a href="photos/DSC04701.jpg" data-lightbox="conference-gallery" data-title="Epoch of Galaxy Quenching 2022">
+                <img class="img-fluid" src="photos/DSC04701.jpg" alt="Conference Photo 5">
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact Me Section -->
+    <section class="section contact-me" data-section="section4">
+      <div class="container">
+        <div class="section-heading text-left">
+          <h2>Contact Me</h2>
+          <div class="line-dec"></div>
+          <p style="margin-bottom: 30px;">Please feel free to contact me if you have any queries or are interested in discussions.</p>
+          <form action="https://formspree.io/f/xpwpjran" method="POST">
+            <div class="row">
+              <div class="col-md-6">
+                <fieldset><input name="name" type="text" class="form-control" placeholder="Your name..." required></fieldset>
+              </div>
+              <div class="col-md-6">
+                <fieldset><input name="email" type="email" class="form-control" placeholder="Your email..." required></fieldset>
+              </div>
+              <div class="col-md-12">
+                <fieldset><input name="subject" type="text" class="form-control" placeholder="Subject..." required></fieldset>
+              </div>
+              <div class="col-md-12">
+                <fieldset><textarea name="message" rows="6" class="form-control" placeholder="Your message..." required></textarea></fieldset>
+              </div>
+              <div class="col-md-12">
+                <fieldset><button type="submit" class="button">Send Message</button></fieldset>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
 
   </div>
 
