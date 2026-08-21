@@ -3,8 +3,7 @@ name: Update Premier Picks results
 on:
   workflow_dispatch:
   schedule:
-    - cron: "23 */6 * * *"
-
+        - cron: "23 * * * *"
 permissions:
   contents: read
 
