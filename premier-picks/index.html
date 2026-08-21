@@ -1,1 +1,135 @@
-hi
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090d1a">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Premier Picks</title>
+  <meta name="description" content="A private Premier League score prediction league for friends.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-glow glow-a"></div>
+  <div class="bg-glow glow-b"></div>
+
+  <header class="topbar">
+    <a class="brand" href="#">
+      <span class="brand-ball">⚽</span>
+      <span>
+        <strong>Premier Picks</strong>
+        <small>2026/27</small>
+      </span>
+    </a>
+    <nav class="nav">
+      <button class="nav-btn active" data-view="predict">Predictions</button>
+      <button class="nav-btn" data-view="leaderboard">Leaderboard</button>
+      <button class="nav-btn" data-view="rules">Rules</button>
+    </nav>
+    <div class="account">
+      <span id="accountName" class="account-name hidden"></span>
+      <button id="signInBtn" class="ghost-btn">Sign in</button>
+      <button id="signOutBtn" class="ghost-btn hidden">Sign out</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="hero" class="hero">
+      <div>
+        <span class="eyebrow">PRIVATE LEAGUE · FRIENDS ONLY</span>
+        <h1>Call the score.<br><span>Own the weekend.</span></h1>
+        <p>Predict every Premier League scoreline, lock your picks, and climb the table. Exact scores are worth the most.</p>
+      </div>
+      <div class="hero-score-card">
+        <div class="mini-label">SCORING</div>
+        <div class="score-row"><strong>4</strong><span>Exact scoreline</span></div>
+        <div class="score-row"><strong>3</strong><span>Correct win / draw / loss</span></div>
+        <div class="score-row"><strong>0</strong><span>Wrong outcome</span></div>
+      </div>
+    </section>
+
+    <section id="predictView" class="view">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">MAKE YOUR PICKS</span>
+          <h2 id="mwTitle">Matchweek 1</h2>
+        </div>
+        <div class="week-controls">
+          <button id="prevMw" class="circle-btn" aria-label="Previous matchweek">←</button>
+          <select id="matchweekSelect" aria-label="Matchweek"></select>
+          <button id="nextMw" class="circle-btn" aria-label="Next matchweek">→</button>
+        </div>
+      </div>
+
+      <div id="statusBanner" class="status-banner hidden"></div>
+
+      <div id="fixtures" class="fixtures-grid">
+        <div class="empty-card">Sign in and connect Supabase to load fixtures.</div>
+      </div>
+
+      <div class="confirm-bar">
+        <div>
+          <strong id="confirmTitle">Predictions open</strong>
+          <span id="confirmText">Complete every match, then confirm to lock this matchweek.</span>
+        </div>
+        <button id="confirmBtn" class="primary-btn" disabled>Confirm predictions</button>
+      </div>
+    </section>
+
+    <section id="leaderboardView" class="view hidden">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">THE TABLE</span>
+          <h2>Leaderboard</h2>
+        </div>
+        <button id="refreshLeaderboard" class="ghost-btn">Refresh</button>
+      </div>
+      <div class="leader-card">
+        <div class="leader-head">
+          <span>#</span><span>Player</span><span>Pts</span><span>Exact</span><span>Correct</span>
+        </div>
+        <div id="leaderboardRows">
+          <div class="empty-card borderless">No scores yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="rulesView" class="view hidden">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">HOW IT WORKS</span>
+          <h2>Rules</h2>
+        </div>
+      </div>
+      <div class="rules-grid">
+        <article class="rule-card"><b>01</b><h3>Predict</h3><p>Enter a home and away score for every fixture in the selected matchweek.</p></article>
+        <article class="rule-card"><b>02</b><h3>Confirm</h3><p>Once you confirm a matchweek, those predictions are permanently locked unless the league admin changes the database.</p></article>
+        <article class="rule-card"><b>03</b><h3>Score</h3><p>Exact scoreline = 4 points. Correct result = 3 points. Wrong result = 0.</p></article>
+        <article class="rule-card"><b>04</b><h3>Win</h3><p>The table ranks by points, then exact-score hits, then correct-outcome hits.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <div id="authModal" class="modal hidden">
+    <div class="modal-card">
+      <button id="closeAuth" class="modal-close">×</button>
+      <span class="eyebrow">JOIN THE LEAGUE</span>
+      <h2>Sign in</h2>
+      <p>Enter your email. Supabase will send you a secure sign-in link.</p>
+      <label>Email<input id="emailInput" type="email" placeholder="you@example.com"></label>
+      <label id="nameLabel" class="hidden">Display name<input id="nameInput" type="text" maxlength="24" placeholder="Robin"></label>
+      <button id="sendMagicLink" class="primary-btn full">Send sign-in link</button>
+      <div id="authMessage" class="form-message"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
