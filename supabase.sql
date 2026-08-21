@@ -1,5 +1,9 @@
--- Premier Picks database setup for Supabase
--- Run this once in the Supabase SQL Editor.
+-- PREMIER PICKS — COMPLETE SUPABASE SETUP
+-- Updated version:
+-- 4 points = exact scoreline
+-- 3 points = correct win/draw/loss
+-- 0 points = wrong outcome
+-- Leaderboard updates after EACH INDIVIDUAL MATCH finishes.
 
 create extension if not exists pgcrypto;
 
@@ -15,6 +19,7 @@ create table if not exists public.fixtures (
   kickoff timestamptz not null,
   home_team text not null,
   away_team text not null,
+  venue text,
   status text not null default 'SCHEDULED',
   home_score integer,
   away_score integer,
@@ -42,104 +47,198 @@ alter table public.fixtures enable row level security;
 alter table public.predictions enable row level security;
 alter table public.confirmations enable row level security;
 
-drop policy if exists "profiles readable by signed in users" on public.profiles;
-create policy "profiles readable by signed in users" on public.profiles for select to authenticated using (true);
-drop policy if exists "users insert own profile" on public.profiles;
-create policy "users insert own profile" on public.profiles for insert to authenticated with check (auth.uid()=id);
-drop policy if exists "users update own profile" on public.profiles;
-create policy "users update own profile" on public.profiles for update to authenticated using (auth.uid()=id) with check (auth.uid()=id);
+drop policy if exists "profile read" on public.profiles;
+create policy "profile read"
+on public.profiles for select to authenticated using (true);
 
-drop policy if exists "fixtures readable by signed in users" on public.fixtures;
-create policy "fixtures readable by signed in users" on public.fixtures for select to authenticated using (true);
+drop policy if exists "own profile insert" on public.profiles;
+create policy "own profile insert"
+on public.profiles for insert to authenticated with check (auth.uid() = id);
 
-drop policy if exists "own predictions readable" on public.predictions;
-create policy "own predictions readable" on public.predictions for select to authenticated using (auth.uid()=user_id);
-drop policy if exists "own predictions insertable" on public.predictions;
-create policy "own predictions insertable" on public.predictions for insert to authenticated with check (auth.uid()=user_id);
-drop policy if exists "own predictions updateable" on public.predictions;
-create policy "own predictions updateable" on public.predictions for update to authenticated using (auth.uid()=user_id) with check (auth.uid()=user_id);
-drop policy if exists "own predictions deletable" on public.predictions;
-create policy "own predictions deletable" on public.predictions for delete to authenticated using (auth.uid()=user_id);
+drop policy if exists "own profile update" on public.profiles;
+create policy "own profile update"
+on public.profiles for update to authenticated
+using (auth.uid() = id)
+with check (auth.uid() = id);
 
-drop policy if exists "own confirmations readable" on public.confirmations;
-create policy "own confirmations readable" on public.confirmations for select to authenticated using (auth.uid()=user_id);
+drop policy if exists "fixtures read" on public.fixtures;
+create policy "fixtures read"
+on public.fixtures for select to authenticated using (true);
 
-create or replace function public.prediction_is_locked(p_user uuid, p_fixture bigint)
-returns boolean language sql stable security definer set search_path=public as $$
+drop policy if exists "own predictions read" on public.predictions;
+create policy "own predictions read"
+on public.predictions for select to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "own predictions insert" on public.predictions;
+create policy "own predictions insert"
+on public.predictions for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists "own predictions update" on public.predictions;
+create policy "own predictions update"
+on public.predictions for update to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "own predictions delete" on public.predictions;
+create policy "own predictions delete"
+on public.predictions for delete to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "own confirmations read" on public.confirmations;
+create policy "own confirmations read"
+on public.confirmations for select to authenticated using (auth.uid() = user_id);
+
+create or replace function public.prediction_locked(
+  p_user uuid,
+  p_fixture bigint
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
   select exists (
-    select 1 from public.confirmations c
-    join public.fixtures f on f.matchweek=c.matchweek
-    where c.user_id=p_user and f.id=p_fixture
+    select 1
+    from public.confirmations c
+    join public.fixtures f on f.matchweek = c.matchweek
+    where c.user_id = p_user
+      and f.id = p_fixture
   );
 $$;
 
-create or replace function public.prevent_locked_prediction_change()
-returns trigger language plpgsql security definer set search_path=public as $$
+create or replace function public.block_locked_prediction()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  if public.prediction_is_locked(coalesce(old.user_id,new.user_id),coalesce(old.fixture_id,new.fixture_id)) then
-    raise exception 'This matchweek is confirmed and locked.';
+  if public.prediction_locked(
+    coalesce(old.user_id, new.user_id),
+    coalesce(old.fixture_id, new.fixture_id)
+  ) then
+    raise exception 'This matchweek has already been confirmed and locked.';
   end if;
-  return coalesce(new,old);
+
+  return coalesce(new, old);
 end;
 $$;
 
-drop trigger if exists predictions_lock_guard on public.predictions;
-create trigger predictions_lock_guard
+drop trigger if exists locked_prediction_guard on public.predictions;
+
+create trigger locked_prediction_guard
 before update or delete on public.predictions
-for each row execute function public.prevent_locked_prediction_change();
+for each row
+execute function public.block_locked_prediction();
 
-create or replace function public.confirm_matchweek(p_matchweek integer)
-returns void language plpgsql security definer set search_path=public as $$
+create or replace function public.confirm_matchweek(
+  p_matchweek integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
 declare
-  fixture_count integer;
-  prediction_count integer;
+  nfixtures integer;
+  npredictions integer;
 begin
-  if auth.uid() is null then raise exception 'Not signed in'; end if;
-  select count(*) into fixture_count from public.fixtures where matchweek=p_matchweek;
-  if fixture_count=0 then raise exception 'No fixtures loaded for this matchweek'; end if;
-
-  select count(*) into prediction_count
-  from public.predictions p
-  join public.fixtures f on f.id=p.fixture_id
-  where p.user_id=auth.uid() and f.matchweek=p_matchweek;
-
-  if prediction_count<>fixture_count then
-    raise exception 'Complete every prediction before confirming';
+  if auth.uid() is null then
+    raise exception 'You must be signed in.';
   end if;
 
-  insert into public.confirmations(user_id,matchweek)
-  values(auth.uid(),p_matchweek)
-  on conflict (user_id,matchweek) do nothing;
+  select count(*) into nfixtures
+  from public.fixtures
+  where matchweek = p_matchweek;
+
+  if nfixtures = 0 then
+    raise exception 'There are no fixtures for this matchweek.';
+  end if;
+
+  select count(*) into npredictions
+  from public.predictions p
+  join public.fixtures f on f.id = p.fixture_id
+  where p.user_id = auth.uid()
+    and f.matchweek = p_matchweek;
+
+  if npredictions <> nfixtures then
+    raise exception 'Save a prediction for every fixture before confirming.';
+  end if;
+
+  insert into public.confirmations(user_id, matchweek)
+  values(auth.uid(), p_matchweek)
+  on conflict(user_id, matchweek) do nothing;
 end;
 $$;
+
 grant execute on function public.confirm_matchweek(integer) to authenticated;
 
+-- Every FINISHED match is scored immediately.
 create or replace function public.get_leaderboard()
-returns table (rank bigint, display_name text, total_points bigint, exact_scores bigint, correct_outcomes bigint, matches_scored bigint)
-language sql stable security definer set search_path=public as $$
-  with completed_weeks as (
-    select matchweek from public.fixtures group by matchweek
-    having count(*) > 0 and bool_and(status='FINISHED' and home_score is not null and away_score is not null)
-  ), scored as (
-    select p.user_id,
-      case when p.home_pred=f.home_score and p.away_pred=f.away_score then 4
-           when sign(p.home_pred-p.away_pred)=sign(f.home_score-f.away_score) then 3
-           else 0 end as pts
-    from public.predictions p join public.fixtures f on f.id=p.fixture_id
-    join completed_weeks cw on cw.matchweek=f.matchweek
-  ), agg as (
-    select pr.id, pr.display_name, coalesce(sum(s.pts),0)::bigint total_points,
-      count(*) filter(where s.pts=4)::bigint exact_scores, count(*) filter(where s.pts=3)::bigint correct_outcomes,
-      count(s.pts)::bigint matches_scored
-    from public.profiles pr left join scored s on s.user_id=pr.id group by pr.id,pr.display_name
+returns table(
+  rank bigint,
+  display_name text,
+  total_points bigint,
+  exact_scores bigint,
+  correct_outcomes bigint,
+  matches_scored bigint,
+  completed_matchweeks bigint
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with scored as (
+    select
+      p.user_id,
+      f.matchweek,
+      case
+        when f.status <> 'FINISHED'
+          or f.home_score is null
+          or f.away_score is null
+        then null
+        when p.home_pred = f.home_score
+          and p.away_pred = f.away_score
+        then 4
+        when sign(p.home_pred - p.away_pred)
+           = sign(f.home_score - f.away_score)
+        then 3
+        else 0
+      end as pts
+    from public.predictions p
+    join public.fixtures f on f.id = p.fixture_id
+  ),
+  agg as (
+    select
+      pr.id,
+      pr.display_name,
+      coalesce(sum(s.pts) filter (where s.pts is not null),0)::bigint as total_points,
+      count(*) filter (where s.pts = 4)::bigint as exact_scores,
+      count(*) filter (where s.pts = 3)::bigint as correct_outcomes,
+      count(*) filter (where s.pts is not null)::bigint as matches_scored,
+      count(distinct s.matchweek)
+        filter (where s.pts is not null)::bigint as completed_matchweeks
+    from public.profiles pr
+    left join scored s on s.user_id = pr.id
+    group by pr.id, pr.display_name
   )
-  select dense_rank() over(order by total_points desc,exact_scores desc,correct_outcomes desc)::bigint,
-    display_name,total_points,exact_scores,correct_outcomes,matches_scored
-  from agg order by total_points desc,exact_scores desc,correct_outcomes desc,display_name;
+  select
+    dense_rank() over (
+      order by total_points desc, exact_scores desc, correct_outcomes desc
+    )::bigint as rank,
+    display_name,
+    total_points,
+    exact_scores,
+    correct_outcomes,
+    matches_scored,
+    completed_matchweeks
+  from agg
+  order by total_points desc, exact_scores desc, correct_outcomes desc, display_name;
 $$;
+
 grant execute on function public.get_leaderboard() to authenticated;
 
--- Keep table grants minimal. The GitHub Action uses a secret key and bypasses RLS.
 grant select on public.fixtures, public.profiles to authenticated;
-grant select,insert,update,delete on public.predictions to authenticated;
+grant select, insert, update, delete on public.predictions to authenticated;
 grant select on public.confirmations to authenticated;
