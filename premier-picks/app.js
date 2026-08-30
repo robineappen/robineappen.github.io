@@ -1,5 +1,4 @@
 (() => {
-  // Accept either config variable name so we never have that earlier problem again.
   const cfg =
     window.PREMIER_PICKS ||
     window.PREMIER_PICKS_CONFIG ||
@@ -37,23 +36,16 @@
     confirmTitle: $("confirmTitle"),
     confirmText: $("confirmText"),
     banner: $("statusBanner"),
-
     signIn: $("signInBtn"),
     signOut: $("signOutBtn"),
     accountName: $("accountName"),
-
     auth: $("authModal"),
     email: $("emailInput"),
     send: $("sendMagicLink"),
     authMessage: $("authMessage"),
-
     toast: $("toast"),
     leaderboard: $("leaderboardRows")
   };
-
-  // ----------------------------------------------------------
-  // MATCHWEEK SELECTOR
-  // ----------------------------------------------------------
 
   for (let i = 1; i <= 38; i++) {
     const option = document.createElement("option");
@@ -62,48 +54,13 @@
     els.matchweek.appendChild(option);
   }
 
-  // ----------------------------------------------------------
-  // NAVIGATION
-  // ----------------------------------------------------------
-
   document.querySelectorAll(".nav-btn").forEach((button) => {
     button.addEventListener("click", () => {
       switchView(button.dataset.view);
     });
   });
 
-  function switchView(view) {
-    document.querySelectorAll(".nav-btn").forEach((button) => {
-      button.classList.toggle(
-        "active",
-        button.dataset.view === view
-      );
-    });
-
-    ["predict", "leaderboard", "rules"].forEach((name) => {
-      const section = $(`${name}View`);
-      if (section) {
-        section.classList.toggle("hidden", name !== view);
-      }
-    });
-
-    const hero = $("hero");
-
-    if (hero) {
-      hero.classList.toggle("hidden", view !== "predict");
-    }
-
-    if (view === "leaderboard") {
-      loadLeaderboard();
-    }
-  }
-
-  // ----------------------------------------------------------
-  // BUTTONS
-  // ----------------------------------------------------------
-
   const closeAuth = $("closeAuth");
-
   if (closeAuth) {
     closeAuth.addEventListener("click", () => {
       els.auth.classList.add("hidden");
@@ -115,9 +72,7 @@
   });
 
   els.signOut.addEventListener("click", async () => {
-    if (sb) {
-      await sb.auth.signOut();
-    }
+    if (sb) await sb.auth.signOut();
   });
 
   els.matchweek.addEventListener("change", () => {
@@ -144,7 +99,6 @@
   els.confirm.addEventListener("click", confirmWeek);
 
   const refreshLeaderboard = $("refreshLeaderboard");
-
   if (refreshLeaderboard) {
     refreshLeaderboard.addEventListener(
       "click",
@@ -154,9 +108,30 @@
 
   els.send.addEventListener("click", sendMagicLink);
 
-  // ----------------------------------------------------------
-  // HELPERS
-  // ----------------------------------------------------------
+  function switchView(view) {
+    document.querySelectorAll(".nav-btn").forEach((button) => {
+      button.classList.toggle(
+        "active",
+        button.dataset.view === view
+      );
+    });
+
+    ["predict", "leaderboard", "rules"].forEach((name) => {
+      const section = $(`${name}View`);
+      if (section) {
+        section.classList.toggle("hidden", name !== view);
+      }
+    });
+
+    const hero = $("hero");
+    if (hero) {
+      hero.classList.toggle("hidden", view !== "predict");
+    }
+
+    if (view === "leaderboard") {
+      loadLeaderboard();
+    }
+  }
 
   function toast(message) {
     els.toast.textContent = message;
@@ -188,10 +163,6 @@
       </div>
     `;
   }
-
-  // ----------------------------------------------------------
-  // AUTHENTICATION
-  // ----------------------------------------------------------
 
   async function sendMagicLink() {
     if (!sb) {
@@ -300,19 +271,12 @@
     }
   }
 
-  // ----------------------------------------------------------
-  // LOAD MATCHWEEK
-  // ----------------------------------------------------------
-
   async function loadWeek() {
     els.mwTitle.textContent =
       `Matchweek ${currentMw}`;
 
     if (!sb || !user) {
-      if (!configured) {
-        showNotConfigured();
-      }
-
+      if (!configured) showNotConfigured();
       return;
     }
 
@@ -351,7 +315,6 @@
           ${escapeHtml(fixtureResult.error.message)}
         </div>
       `;
-
       return;
     }
 
@@ -371,9 +334,83 @@
     updateConfirmBar();
   }
 
-  // ----------------------------------------------------------
-  // DISPLAY FIXTURES
-  // ----------------------------------------------------------
+  function isLiveStatus(status) {
+    return ["LIVE", "IN_PLAY", "PAUSED"].includes(status);
+  }
+
+  function scorePoints(prediction, fixture) {
+    if (
+      prediction.home_pred == null ||
+      prediction.away_pred == null ||
+      fixture.home_score == null ||
+      fixture.away_score == null
+    ) {
+      return null;
+    }
+
+    const predictedHome =
+      Number(prediction.home_pred);
+
+    const predictedAway =
+      Number(prediction.away_pred);
+
+    const actualHome =
+      Number(fixture.home_score);
+
+    const actualAway =
+      Number(fixture.away_score);
+
+    if (
+      predictedHome === actualHome &&
+      predictedAway === actualAway
+    ) {
+      return 4;
+    }
+
+    if (
+      Math.sign(predictedHome - predictedAway) ===
+      Math.sign(actualHome - actualAway)
+    ) {
+      return 3;
+    }
+
+    return 0;
+  }
+
+  function formHtml(form) {
+    if (!Array.isArray(form) || !form.length) {
+      return `<span style="color:#8f9ab5;font-size:11px;">No form yet</span>`;
+    }
+
+    return form
+      .map((r) => {
+        const bg =
+          r === "W"
+            ? "#1f7a3f"
+            : r === "D"
+            ? "#8a7a2d"
+            : "#7a2d3a";
+
+        return `
+          <span style="
+            display:inline-flex;
+            width:22px;
+            height:22px;
+            border-radius:50%;
+            align-items:center;
+            justify-content:center;
+            margin-right:4px;
+            background:${bg};
+            color:white;
+            font-size:10px;
+            font-weight:800;
+          ">
+            ${r}
+          </span>
+        `;
+      })
+      .join("");
+  }
 
   function renderFixtures(list) {
     if (!user && configured) {
@@ -382,7 +419,6 @@
           Sign in to make your predictions.
         </div>
       `;
-
       return;
     }
 
@@ -392,7 +428,6 @@
           No fixtures loaded for Matchweek ${currentMw}.
         </div>
       `;
-
       updateConfirmBar();
       return;
     }
@@ -404,19 +439,17 @@
 
         const locked = !!confirmation;
 
-        // --------------------------------------------------
-        // THIS IS THE IMPORTANT FINAL-SCORE CHECK
-        // --------------------------------------------------
-
         const finished =
           fixture.status === "FINISHED" &&
-          fixture.home_score !== null &&
-          fixture.home_score !== undefined &&
-          fixture.away_score !== null &&
-          fixture.away_score !== undefined;
+          fixture.home_score != null &&
+          fixture.away_score != null;
 
-        const dateObject =
-          new Date(fixture.kickoff);
+        const live =
+          isLiveStatus(fixture.status) &&
+          fixture.home_score != null &&
+          fixture.away_score != null;
+
+        const dateObject = new Date(fixture.kickoff);
 
         const date = isNaN(dateObject)
           ? fixture.kickoff
@@ -429,19 +462,18 @@
             });
 
         const predictionExists =
-          prediction.home_pred !== null &&
-          prediction.home_pred !== undefined &&
-          prediction.away_pred !== null &&
-          prediction.away_pred !== undefined;
+          prediction.home_pred != null &&
+          prediction.away_pred != null;
 
         const points =
-          finished && predictionExists
+          (finished || live) && predictionExists
             ? scorePoints(prediction, fixture)
             : null;
 
-        // Final result displayed between teams
-        const centreScore = finished
-          ? `
+        let matchState = "VS";
+
+        if (finished) {
+          matchState = `
             <div style="
               text-align:center;
               font-size:24px;
@@ -459,8 +491,33 @@
                 FT
               </div>
             </div>
-          `
-          : `<div class="versus">VS</div>`;
+          `;
+        } else if (live) {
+          const minuteText =
+            fixture.minute != null
+              ? `${fixture.minute}'`
+              : "LIVE";
+
+          matchState = `
+            <div style="
+              text-align:center;
+              font-size:24px;
+              font-weight:800;
+              color:#ff6b7d;
+              line-height:1;
+            ">
+              ${fixture.home_score}–${fixture.away_score}
+              <div style="
+                font-size:9px;
+                letter-spacing:.12em;
+                margin-top:6px;
+                color:#ff6b7d;
+              ">
+                LIVE ${minuteText}
+              </div>
+            </div>
+          `;
+        }
 
         return `
           <article class="fixture-card">
@@ -484,9 +541,13 @@
                 ">
                   HOME
                 </div>
+
+                <div style="margin-top:8px;">
+                  ${formHtml(fixture.home_form)}
+                </div>
               </div>
 
-              ${centreScore}
+              ${matchState}
 
               <div class="team away">
                 ${escapeHtml(fixture.away_team)}
@@ -497,6 +558,10 @@
                   letter-spacing:.1em;
                 ">
                   AWAY
+                </div>
+
+                <div style="margin-top:8px;">
+                  ${formHtml(fixture.away_form)}
                 </div>
               </div>
 
@@ -544,10 +609,14 @@
             }
 
             ${
-              finished
+              finished || live
                 ? `
                   <div class="actual">
-                    Final score:
+                    ${
+                      finished
+                        ? "Final score"
+                        : "Live score"
+                    }:
                     <strong>
                       ${fixture.home_team}
                       ${fixture.home_score}–${fixture.away_score}
@@ -558,8 +627,16 @@
                       points !== null
                         ? `
                           ·
-                          <strong>
-                            +${points} pts
+                          <strong style="${
+                            live
+                              ? "color:#ffcf66;"
+                              : ""
+                          }">
+                            ${
+                              live
+                                ? "Provisional "
+                                : ""
+                            }+${points} pts
                           </strong>
                         `
                         : ""
@@ -583,10 +660,6 @@
         );
       });
   }
-
-  // ----------------------------------------------------------
-  // SAVE PREDICTION
-  // ----------------------------------------------------------
 
   async function savePrediction(event) {
     if (!sb || !user || confirmation) {
@@ -638,13 +711,8 @@
     );
 
     toast("Prediction saved ✓");
-
     updateConfirmBar();
   }
-
-  // ----------------------------------------------------------
-  // CONFIRM / LOCK
-  // ----------------------------------------------------------
 
   function updateConfirmBar() {
     const complete =
@@ -657,10 +725,8 @@
 
         return (
           prediction &&
-          prediction.home_pred !== null &&
-          prediction.home_pred !== undefined &&
-          prediction.away_pred !== null &&
-          prediction.away_pred !== undefined
+          prediction.home_pred != null &&
+          prediction.away_pred != null
         );
       });
 
@@ -728,70 +794,6 @@
     await loadWeek();
   }
 
-  // ----------------------------------------------------------
-  // SCORING
-  // ----------------------------------------------------------
-
-  function scorePoints(
-    prediction,
-    fixture
-  ) {
-    if (
-      prediction.home_pred == null ||
-      prediction.away_pred == null ||
-      fixture.home_score == null ||
-      fixture.away_score == null
-    ) {
-      return null;
-    }
-
-    const predictedHome =
-      Number(prediction.home_pred);
-
-    const predictedAway =
-      Number(prediction.away_pred);
-
-    const actualHome =
-      Number(fixture.home_score);
-
-    const actualAway =
-      Number(fixture.away_score);
-
-    // Exact score = 4
-    if (
-      predictedHome === actualHome &&
-      predictedAway === actualAway
-    ) {
-      return 4;
-    }
-
-    // Correct win / draw / loss = 3
-    const predictedOutcome =
-      Math.sign(
-        predictedHome -
-        predictedAway
-      );
-
-    const actualOutcome =
-      Math.sign(
-        actualHome -
-        actualAway
-      );
-
-    if (
-      predictedOutcome === actualOutcome
-    ) {
-      return 3;
-    }
-
-    // Wrong result = 0
-    return 0;
-  }
-
-  // ----------------------------------------------------------
-  // LEADERBOARD
-  // ----------------------------------------------------------
-
   async function loadLeaderboard() {
     if (!sb) {
       els.leaderboard.innerHTML = `
@@ -799,7 +801,6 @@
           Configure Supabase first.
         </div>
       `;
-
       return;
     }
 
@@ -810,9 +811,7 @@
     `;
 
     const { data, error } =
-      await sb.rpc(
-        "get_leaderboard"
-      );
+      await sb.rpc("get_leaderboard");
 
     if (error) {
       els.leaderboard.innerHTML = `
@@ -820,17 +819,15 @@
           ${escapeHtml(error.message)}
         </div>
       `;
-
       return;
     }
 
     if (!data?.length) {
       els.leaderboard.innerHTML = `
         <div class="empty-card borderless">
-          No finished matches yet.
+          No scored matches yet.
         </div>
       `;
-
       return;
     }
 
@@ -879,10 +876,6 @@
         .join("");
   }
 
-  // ----------------------------------------------------------
-  // START
-  // ----------------------------------------------------------
-
   if (sb) {
     sb.auth.onAuthStateChange(() => {
       setTimeout(
@@ -893,4 +886,18 @@
   }
 
   refreshAuth();
+
+  // Auto-refresh current matchweek and leaderboard every 60 seconds
+  setInterval(async () => {
+    if (!user) return;
+
+    await loadWeek();
+
+    const leaderboardVisible =
+      !$("leaderboardView").classList.contains("hidden");
+
+    if (leaderboardVisible) {
+      await loadLeaderboard();
+    }
+  }, 60000);
 })();
