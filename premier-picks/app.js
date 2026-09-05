@@ -1,903 +1,302 @@
 (() => {
-  const cfg =
-    window.PREMIER_PICKS ||
-    window.PREMIER_PICKS_CONFIG ||
-    {};
-
+  const cfg = window.PREMIER_PICKS || window.PREMIER_PICKS_CONFIG || {};
   const configured =
     cfg.SUPABASE_URL &&
     !cfg.SUPABASE_URL.includes("YOUR_PROJECT") &&
     cfg.SUPABASE_PUBLISHABLE_KEY &&
     !cfg.SUPABASE_PUBLISHABLE_KEY.includes("YOUR_KEY");
 
-  const sb = configured
-    ? window.supabase.createClient(
-        cfg.SUPABASE_URL,
-        cfg.SUPABASE_PUBLISHABLE_KEY
-      )
-    : null;
+  const sb = configured ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY) : null;
 
-  let user = null;
-  let profile = null;
-  let currentMw = 1;
-  let fixtures = [];
-  let predictions = new Map();
-  let confirmation = null;
+  let user=null, profile=null, currentMw=1, fixtures=[], predictions=new Map(), confirmation=null;
+  const $=id=>document.getElementById(id);
 
-  const $ = (id) => document.getElementById(id);
-
-  const els = {
-    fixtures: $("fixtures"),
-    matchweek: $("matchweekSelect"),
-    mwTitle: $("mwTitle"),
-    prev: $("prevMw"),
-    next: $("nextMw"),
-    confirm: $("confirmBtn"),
-    confirmTitle: $("confirmTitle"),
-    confirmText: $("confirmText"),
-    banner: $("statusBanner"),
-    signIn: $("signInBtn"),
-    signOut: $("signOutBtn"),
-    accountName: $("accountName"),
-    auth: $("authModal"),
-    email: $("emailInput"),
-    send: $("sendMagicLink"),
-    authMessage: $("authMessage"),
-    toast: $("toast"),
-    leaderboard: $("leaderboardRows")
+  const els={
+    fixtures:$("fixtures"),matchweek:$("matchweekSelect"),mwTitle:$("mwTitle"),
+    prev:$("prevMw"),next:$("nextMw"),confirm:$("confirmBtn"),
+    confirmTitle:$("confirmTitle"),confirmText:$("confirmText"),banner:$("statusBanner"),
+    signIn:$("signInBtn"),signOut:$("signOutBtn"),accountName:$("accountName"),
+    auth:$("authModal"),email:$("emailInput"),send:$("sendMagicLink"),
+    authMessage:$("authMessage"),toast:$("toast"),leaderboard:$("leaderboardRows")
   };
 
-  for (let i = 1; i <= 38; i++) {
-    const option = document.createElement("option");
-    option.value = i;
-    option.textContent = `Matchweek ${i}`;
-    els.matchweek.appendChild(option);
+  for(let i=1;i<=38;i++){const o=document.createElement("option");o.value=i;o.textContent=`Matchweek ${i}`;els.matchweek.appendChild(o);}
+
+  document.querySelectorAll(".nav-btn").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
+  $("closeAuth")?.addEventListener("click",()=>els.auth.classList.add("hidden"));
+  els.signIn?.addEventListener("click",()=>els.auth.classList.remove("hidden"));
+  els.signOut?.addEventListener("click",async()=>{if(sb)await sb.auth.signOut();});
+  els.matchweek?.addEventListener("change",()=>{currentMw=Number(els.matchweek.value);loadWeek();});
+  els.prev?.addEventListener("click",()=>{if(currentMw>1){currentMw--;els.matchweek.value=currentMw;loadWeek();}});
+  els.next?.addEventListener("click",()=>{if(currentMw<38){currentMw++;els.matchweek.value=currentMw;loadWeek();}});
+  els.confirm?.addEventListener("click",confirmWeek);
+  $("refreshLeaderboard")?.addEventListener("click",loadLeaderboard);
+  els.send?.addEventListener("click",sendMagicLink);
+
+  function switchView(view){
+    document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
+    ["predict","leaderboard","rules"].forEach(name=>$(`${name}View`)?.classList.toggle("hidden",name!==view));
+    $("hero")?.classList.toggle("hidden",view!=="predict");
+    if(view==="leaderboard")loadLeaderboard();
   }
 
-  document.querySelectorAll(".nav-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      switchView(button.dataset.view);
-    });
-  });
-
-  const closeAuth = $("closeAuth");
-  if (closeAuth) {
-    closeAuth.addEventListener("click", () => {
-      els.auth.classList.add("hidden");
-    });
+  function toast(msg){if(!els.toast)return;els.toast.textContent=msg;els.toast.classList.remove("hidden");setTimeout(()=>els.toast.classList.add("hidden"),2600);}
+  function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function liveStatus(s){return ["LIVE","IN_PLAY","PAUSED"].includes(s);}
+  function pointsFor(p,f){
+    if(p?.home_pred==null||p?.away_pred==null||f.home_score==null||f.away_score==null)return null;
+    const ph=Number(p.home_pred),pa=Number(p.away_pred),ah=Number(f.home_score),aa=Number(f.away_score);
+    if(ph===ah&&pa===aa)return 4;
+    return Math.sign(ph-pa)===Math.sign(ah-aa)?3:0;
   }
 
-  els.signIn.addEventListener("click", () => {
-    els.auth.classList.remove("hidden");
-  });
+  function formHtml(arr){
+    if(!Array.isArray(arr)||!arr.length)return `<span style="font-size:10px;color:#66718b">—</span>`;
+    return arr.map(x=>{
+      const bg=x==="W"?"#2f7d4a":x==="D"?"#81722b":"#7a3340";
+      return `<span style="display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;background:${bg};color:#fff;font-size:9px;font-weight:800;margin:2px">${x}</span>`;
+    }).join("");
+  }
 
-  els.signOut.addEventListener("click", async () => {
-    if (sb) await sb.auth.signOut();
-  });
+  async function sendMagicLink(){
+    if(!sb){els.authMessage.textContent="Configure Supabase first.";return;}
+    const email=els.email.value.trim();
+    if(!email){els.authMessage.textContent="Enter your email.";return;}
+    els.send.disabled=true;
+    const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:"https://robineappen.github.io/premier-picks/"}});
+    els.send.disabled=false;
+    els.authMessage.textContent=error?error.message:"Check your email for the sign-in link.";
+  }
 
-  els.matchweek.addEventListener("change", () => {
-    currentMw = Number(els.matchweek.value);
-    loadWeek();
-  });
+  async function ensureProfile(){
+    if(!user)return;
+    const q=await sb.from("profiles").select("id,display_name").eq("id",user.id).maybeSingle();
+    if(q.data){profile=q.data;return;}
+    const suggested=(user.email||"Player").split("@")[0].slice(0,24);
+    const name=prompt("Choose your leaderboard name:",suggested);
+    if(!name)return;
+    const created=await sb.from("profiles").insert({id:user.id,display_name:name.trim().slice(0,24)}).select().single();
+    if(created.error){toast(created.error.message);return;}
+    profile=created.data;
+  }
 
-  els.prev.addEventListener("click", () => {
-    if (currentMw > 1) {
-      currentMw--;
-      els.matchweek.value = currentMw;
-      loadWeek();
+  async function chooseCurrentMatchweek(){
+    const {data,error}=await sb.from("fixtures").select("matchweek,kickoff,status").order("matchweek").order("kickoff");
+    if(error||!data?.length)return;
+
+    const live=data.find(x=>liveStatus(x.status));
+    if(live){currentMw=Number(live.matchweek);els.matchweek.value=currentMw;return;}
+
+    const now=Date.now(),groups=new Map();
+    data.forEach(x=>{const mw=Number(x.matchweek);if(!groups.has(mw))groups.set(mw,[]);groups.get(mw).push(x);});
+
+    let chosen=null;
+    for(const [mw,list] of groups){
+      const unfinished=list.some(x=>x.status!=="FINISHED");
+      const relevant=list.some(x=>new Date(x.kickoff).getTime()>=now-36*3600*1000);
+      if(unfinished&&relevant){chosen=mw;break;}
     }
-  });
-
-  els.next.addEventListener("click", () => {
-    if (currentMw < 38) {
-      currentMw++;
-      els.matchweek.value = currentMw;
-      loadWeek();
-    }
-  });
-
-  els.confirm.addEventListener("click", confirmWeek);
-
-  const refreshLeaderboard = $("refreshLeaderboard");
-  if (refreshLeaderboard) {
-    refreshLeaderboard.addEventListener(
-      "click",
-      loadLeaderboard
-    );
+    if(chosen==null)chosen=Math.max(...data.map(x=>Number(x.matchweek)||1));
+    currentMw=chosen;els.matchweek.value=currentMw;
   }
 
-  els.send.addEventListener("click", sendMagicLink);
+  async function refreshAuth(){
+    if(!sb)return;
+    const {data:{session}}=await sb.auth.getSession();
+    user=session?.user||null;profile=null;
 
-  function switchView(view) {
-    document.querySelectorAll(".nav-btn").forEach((button) => {
-      button.classList.toggle(
-        "active",
-        button.dataset.view === view
-      );
-    });
+    els.signIn?.classList.toggle("hidden",!!user);
+    els.signOut?.classList.toggle("hidden",!user);
+    els.accountName?.classList.toggle("hidden",!user);
 
-    ["predict", "leaderboard", "rules"].forEach((name) => {
-      const section = $(`${name}View`);
-      if (section) {
-        section.classList.toggle("hidden", name !== view);
-      }
-    });
-
-    const hero = $("hero");
-    if (hero) {
-      hero.classList.toggle("hidden", view !== "predict");
-    }
-
-    if (view === "leaderboard") {
-      loadLeaderboard();
-    }
-  }
-
-  function toast(message) {
-    els.toast.textContent = message;
-    els.toast.classList.remove("hidden");
-
-    setTimeout(() => {
-      els.toast.classList.add("hidden");
-    }, 2800);
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "").replace(
-      /[&<>"']/g,
-      (character) =>
-        ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;"
-        })[character]
-    );
-  }
-
-  function showNotConfigured() {
-    els.fixtures.innerHTML = `
-      <div class="empty-card">
-        Configure Supabase in config.js first.
-      </div>
-    `;
-  }
-
-  async function sendMagicLink() {
-    if (!sb) {
-      els.authMessage.textContent =
-        "Configure Supabase in config.js first.";
+    if(!user){
+      if(els.fixtures)els.fixtures.innerHTML=`<div class="empty-card">Sign in to make predictions.</div>`;
       return;
     }
 
-    const email = els.email.value.trim();
-
-    if (!email) {
-      els.authMessage.textContent =
-        "Enter your email first.";
-      return;
-    }
-
-    els.send.disabled = true;
-
-    const { error } = await sb.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo:
-          "https://robineappen.github.io/premier-picks/"
-      }
-    });
-
-    els.send.disabled = false;
-
-    els.authMessage.textContent = error
-      ? error.message
-      : "Check your email for the sign-in link.";
+    await ensureProfile();
+    if(els.accountName)els.accountName.textContent=profile?.display_name||user.email||"";
+    els.auth?.classList.add("hidden");
+    await chooseCurrentMatchweek();
+    await loadWeek();
   }
 
-  async function ensureProfile() {
-    if (!user) return;
+  async function loadWeek(){
+    if(!sb||!user)return;
+    els.mwTitle.textContent=`Matchweek ${currentMw}`;
+    els.fixtures.innerHTML=`<div class="empty-card">Loading Matchweek ${currentMw}…</div>`;
 
-    const result = await sb
-      .from("profiles")
-      .select("id,display_name")
-      .eq("id", user.id)
-      .maybeSingle();
+    const [fx,pr,cf]=await Promise.all([
+      sb.from("fixtures").select("*").eq("matchweek",currentMw).order("kickoff"),
+      sb.from("predictions").select("fixture_id,home_pred,away_pred").eq("user_id",user.id),
+      sb.from("confirmations").select("*").eq("user_id",user.id).eq("matchweek",currentMw).maybeSingle()
+    ]);
 
-    if (result.data) {
-      profile = result.data;
-      return;
-    }
+    if(fx.error){els.fixtures.innerHTML=`<div class="empty-card">${esc(fx.error.message)}</div>`;return;}
 
-    const suggestedName = (user.email || "Player")
-      .split("@")[0]
-      .slice(0, 24);
-
-    const name = prompt(
-      "Choose your leaderboard name:",
-      suggestedName
-    );
-
-    if (!name) return;
-
-    const created = await sb
-      .from("profiles")
-      .insert({
-        id: user.id,
-        display_name: name.trim().slice(0, 24)
-      })
-      .select()
-      .single();
-
-    if (created.error) {
-      toast(created.error.message);
-      return;
-    }
-
-    profile = created.data;
-  }
-
-  async function refreshAuth() {
-    if (!sb) {
-      showNotConfigured();
-      return;
-    }
-
-    const {
-      data: { session }
-    } = await sb.auth.getSession();
-
-    user = session?.user || null;
-
-    if (user) {
-      await ensureProfile();
-    }
-
-    els.signIn.classList.toggle("hidden", !!user);
-    els.signOut.classList.toggle("hidden", !user);
-    els.accountName.classList.toggle("hidden", !user);
-
-    els.accountName.textContent =
-      profile?.display_name ||
-      user?.email ||
-      "";
-
-    if (user) {
-      els.auth.classList.add("hidden");
-      await loadWeek();
-    } else {
-      renderFixtures([]);
-    }
-  }
-
-  async function loadWeek() {
-    els.mwTitle.textContent =
-      `Matchweek ${currentMw}`;
-
-    if (!sb || !user) {
-      if (!configured) showNotConfigured();
-      return;
-    }
-
-    els.fixtures.innerHTML = `
-      <div class="empty-card">
-        Loading Matchweek ${currentMw}…
-      </div>
-    `;
-
-    const [fixtureResult, predictionResult, confirmationResult] =
-      await Promise.all([
-        sb
-          .from("fixtures")
-          .select("*")
-          .eq("matchweek", currentMw)
-          .order("kickoff"),
-
-        sb
-          .from("predictions")
-          .select(
-            "fixture_id,home_pred,away_pred"
-          )
-          .eq("user_id", user.id),
-
-        sb
-          .from("confirmations")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("matchweek", currentMw)
-          .maybeSingle()
-      ]);
-
-    if (fixtureResult.error) {
-      els.fixtures.innerHTML = `
-        <div class="empty-card">
-          ${escapeHtml(fixtureResult.error.message)}
-        </div>
-      `;
-      return;
-    }
-
-    fixtures = fixtureResult.data || [];
-
-    predictions = new Map(
-      (predictionResult.data || []).map((prediction) => [
-        String(prediction.fixture_id),
-        prediction
-      ])
-    );
-
-    confirmation =
-      confirmationResult.data || null;
-
-    renderFixtures(fixtures);
+    fixtures=fx.data||[];
+    predictions=new Map((pr.data||[]).map(p=>[String(p.fixture_id),p]));
+    confirmation=cf.data||null;
+    renderFixtures();
     updateConfirmBar();
   }
 
-  function isLiveStatus(status) {
-    return ["LIVE", "IN_PLAY", "PAUSED"].includes(status);
-  }
+  function renderFixtures(){
+    if(!fixtures.length){els.fixtures.innerHTML=`<div class="empty-card">No fixtures for Matchweek ${currentMw}.</div>`;return;}
 
-  function scorePoints(prediction, fixture) {
-    if (
-      prediction.home_pred == null ||
-      prediction.away_pred == null ||
-      fixture.home_score == null ||
-      fixture.away_score == null
-    ) {
-      return null;
-    }
+    els.fixtures.innerHTML=fixtures.map(f=>{
+      const p=predictions.get(String(f.id))||{};
+      const live=liveStatus(f.status)&&f.home_score!=null&&f.away_score!=null;
+      const finished=f.status==="FINISHED"&&f.home_score!=null&&f.away_score!=null;
+      const started=Date.now()>=new Date(f.kickoff).getTime()||live||finished;
+      const locked=!!confirmation||started;
+      const pts=(live||finished)?pointsFor(p,f):null;
 
-    const predictedHome =
-      Number(prediction.home_pred);
+      const dt=new Date(f.kickoff);
+      const date=dt.toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
 
-    const predictedAway =
-      Number(prediction.away_pred);
+      let center=`<div class="versus">VS</div>`;
+      if(live||finished){
+        let state=finished?"FT":"LIVE";
+        if(!finished&&f.status==="PAUSED")state="HT";
+        else if(!finished&&f.minute!=null)state=`LIVE ${f.minute}'`;
 
-    const actualHome =
-      Number(fixture.home_score);
+        center=`<div style="text-align:center">
+          <div style="font-size:25px;font-weight:900;color:${finished?"#b8ff43":"#ff6f82"}">${f.home_score}–${f.away_score}</div>
+          <div style="font-size:9px;letter-spacing:.12em;margin-top:5px;color:${finished?"#8f9ab5":"#ff6f82"}">${state}</div>
+        </div>`;
+      }
 
-    const actualAway =
-      Number(fixture.away_score);
-
-    if (
-      predictedHome === actualHome &&
-      predictedAway === actualAway
-    ) {
-      return 4;
-    }
-
-    if (
-      Math.sign(predictedHome - predictedAway) ===
-      Math.sign(actualHome - actualAway)
-    ) {
-      return 3;
-    }
-
-    return 0;
-  }
-
-  function formHtml(form) {
-    if (!Array.isArray(form) || !form.length) {
-      return `<span style="color:#8f9ab5;font-size:11px;">No form yet</span>`;
-    }
-
-    return form
-      .map((r) => {
-        const bg =
-          r === "W"
-            ? "#1f7a3f"
-            : r === "D"
-            ? "#8a7a2d"
-            : "#7a2d3a";
-
-        return `
-          <span style="
-            display:inline-flex;
-            width:22px;
-            height:22px;
-            border-radius:50%;
-            align-items:center;
-            justify-content:center;
-            margin-right:4px;
-            background:${bg};
-            color:white;
-            font-size:10px;
-            font-weight:800;
-          ">
-            ${r}
-          </span>
-        `;
-      })
-      .join("");
-  }
-
-  function renderFixtures(list) {
-    if (!user && configured) {
-      els.fixtures.innerHTML = `
-        <div class="empty-card">
-          Sign in to make your predictions.
+      return `<article class="fixture-card" data-fixture="${f.id}">
+        <div class="fixture-meta"><span>${esc(date)}${f.venue?` · ${esc(f.venue)}`:""}</span><span>${esc(f.status||"SCHEDULED")}</span></div>
+        <div class="teams">
+          <div class="team">${esc(f.home_team)}<div style="font-size:9px;color:#8f9ab5;margin-top:3px">HOME</div><div style="margin-top:7px">${formHtml(f.home_form)}</div></div>
+          ${center}
+          <div class="team away">${esc(f.away_team)}<div style="font-size:9px;color:#8f9ab5;margin-top:3px">AWAY</div><div style="margin-top:7px">${formHtml(f.away_form)}</div></div>
         </div>
-      `;
-      return;
-    }
 
-    if (!list.length) {
-      els.fixtures.innerHTML = `
-        <div class="empty-card">
-          No fixtures loaded for Matchweek ${currentMw}.
+        <div class="prediction-inputs">
+          <input type="number" inputmode="numeric" min="0" max="20" data-side="home" value="${p.home_pred??""}" ${locked?"disabled":""}>
+          <div class="dash">—</div>
+          <input type="number" inputmode="numeric" min="0" max="20" data-side="away" value="${p.away_pred??""}" ${locked?"disabled":""}>
         </div>
-      `;
-      updateConfirmBar();
-      return;
-    }
 
-    els.fixtures.innerHTML = list
-      .map((fixture) => {
-        const prediction =
-          predictions.get(String(fixture.id)) || {};
+        <div class="actual">
+          ${p.home_pred!=null&&p.away_pred!=null?`Your pick: <strong>${p.home_pred}–${p.away_pred}</strong>`:"No prediction saved"}
+          ${(live||finished)&&pts!=null?` · <strong>${live?"Provisional ":""}+${pts} pts</strong>`:""}
+        </div>
 
-        const locked = !!confirmation;
+        ${started?`
+          <button type="button" class="ghost-btn match-picks-btn" style="margin-top:12px;width:100%">
+            ${finished?"View everyone's final picks":"View live match picks"}
+          </button>
+          <div class="match-picks-panel hidden" style="margin-top:12px"></div>
+        `:""}
+      </article>`;
+    }).join("");
 
-        const finished =
-          fixture.status === "FINISHED" &&
-          fixture.home_score != null &&
-          fixture.away_score != null;
-
-        const live =
-          isLiveStatus(fixture.status) &&
-          fixture.home_score != null &&
-          fixture.away_score != null;
-
-        const dateObject = new Date(fixture.kickoff);
-
-        const date = isNaN(dateObject)
-          ? fixture.kickoff
-          : dateObject.toLocaleString([], {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit"
-            });
-
-        const predictionExists =
-          prediction.home_pred != null &&
-          prediction.away_pred != null;
-
-        const points =
-          (finished || live) && predictionExists
-            ? scorePoints(prediction, fixture)
-            : null;
-
-        let matchState = "VS";
-
-        if (finished) {
-          matchState = `
-            <div style="
-              text-align:center;
-              font-size:24px;
-              font-weight:800;
-              color:#b8ff43;
-              line-height:1;
-            ">
-              ${fixture.home_score}–${fixture.away_score}
-              <div style="
-                font-size:9px;
-                letter-spacing:.12em;
-                margin-top:6px;
-                color:#8f9ab5;
-              ">
-                FT
-              </div>
-            </div>
-          `;
-        } else if (live) {
-          const minuteText =
-            fixture.minute != null
-              ? `${fixture.minute}'`
-              : "LIVE";
-
-          matchState = `
-            <div style="
-              text-align:center;
-              font-size:24px;
-              font-weight:800;
-              color:#ff6b7d;
-              line-height:1;
-            ">
-              ${fixture.home_score}–${fixture.away_score}
-              <div style="
-                font-size:9px;
-                letter-spacing:.12em;
-                margin-top:6px;
-                color:#ff6b7d;
-              ">
-                LIVE ${minuteText}
-              </div>
-            </div>
-          `;
-        }
-
-        return `
-          <article class="fixture-card">
-
-            <div class="fixture-meta">
-              <span>${escapeHtml(date)}</span>
-              <span>${escapeHtml(
-                fixture.status || "SCHEDULED"
-              )}</span>
-            </div>
-
-            <div class="teams">
-
-              <div class="team">
-                ${escapeHtml(fixture.home_team)}
-                <div style="
-                  font-size:9px;
-                  color:#8f9ab5;
-                  margin-top:4px;
-                  letter-spacing:.1em;
-                ">
-                  HOME
-                </div>
-
-                <div style="margin-top:8px;">
-                  ${formHtml(fixture.home_form)}
-                </div>
-              </div>
-
-              ${matchState}
-
-              <div class="team away">
-                ${escapeHtml(fixture.away_team)}
-                <div style="
-                  font-size:9px;
-                  color:#8f9ab5;
-                  margin-top:4px;
-                  letter-spacing:.1em;
-                ">
-                  AWAY
-                </div>
-
-                <div style="margin-top:8px;">
-                  ${formHtml(fixture.away_form)}
-                </div>
-              </div>
-
-            </div>
-
-            <div class="prediction-inputs">
-
-              <input
-                inputmode="numeric"
-                min="0"
-                max="20"
-                type="number"
-                data-fixture="${fixture.id}"
-                data-side="home"
-                value="${prediction.home_pred ?? ""}"
-                ${locked ? "disabled" : ""}
-              >
-
-              <div class="dash">—</div>
-
-              <input
-                inputmode="numeric"
-                min="0"
-                max="20"
-                type="number"
-                data-fixture="${fixture.id}"
-                data-side="away"
-                value="${prediction.away_pred ?? ""}"
-                ${locked ? "disabled" : ""}
-              >
-
-            </div>
-
-            ${
-              predictionExists
-                ? `
-                  <div class="actual">
-                    Your prediction:
-                    <strong>
-                      ${prediction.home_pred}–${prediction.away_pred}
-                    </strong>
-                  </div>
-                `
-                : ""
-            }
-
-            ${
-              finished || live
-                ? `
-                  <div class="actual">
-                    ${
-                      finished
-                        ? "Final score"
-                        : "Live score"
-                    }:
-                    <strong>
-                      ${fixture.home_team}
-                      ${fixture.home_score}–${fixture.away_score}
-                      ${fixture.away_team}
-                    </strong>
-
-                    ${
-                      points !== null
-                        ? `
-                          ·
-                          <strong style="${
-                            live
-                              ? "color:#ffcf66;"
-                              : ""
-                          }">
-                            ${
-                              live
-                                ? "Provisional "
-                                : ""
-                            }+${points} pts
-                          </strong>
-                        `
-                        : ""
-                    }
-                  </div>
-                `
-                : ""
-            }
-
-          </article>
-        `;
-      })
-      .join("");
-
-    els.fixtures
-      .querySelectorAll("input")
-      .forEach((input) => {
-        input.addEventListener(
-          "change",
-          savePrediction
-        );
-      });
+    els.fixtures.querySelectorAll(".fixture-card").forEach(card=>{
+      const f=fixtures.find(x=>String(x.id)===String(card.dataset.fixture));
+      card.querySelectorAll(".prediction-inputs input").forEach(i=>i.addEventListener("change",()=>savePrediction(card,f)));
+      card.querySelector(".match-picks-btn")?.addEventListener("click",()=>toggleMatchPredictions(card,f));
+    });
   }
 
-  async function savePrediction(event) {
-    if (!sb || !user || confirmation) {
-      return;
-    }
+  async function savePrediction(card,f){
+    if(!sb||!user||confirmation)return;
+    if(Date.now()>=new Date(f.kickoff).getTime()){toast("This match has already kicked off.");await loadWeek();return;}
 
-    const fixtureId =
-      String(event.target.dataset.fixture);
+    const inputs=[...card.querySelectorAll(".prediction-inputs input")];
+    const h=inputs[0].value,a=inputs[1].value;
+    if(h===""||a==="")return;
 
-    const card =
-      event.target.closest(".fixture-card");
+    const payload={user_id:user.id,fixture_id:Number(f.id),home_pred:Number(h),away_pred:Number(a),updated_at:new Date().toISOString()};
+    const {error}=await sb.from("predictions").upsert(payload,{onConflict:"user_id,fixture_id"});
+    if(error){toast(error.message);return;}
 
-    const inputs =
-      [...card.querySelectorAll("input")];
-
-    const home =
-      inputs[0].value;
-
-    const away =
-      inputs[1].value;
-
-    if (home === "" || away === "") {
-      return;
-    }
-
-    const payload = {
-      user_id: user.id,
-      fixture_id: Number(fixtureId),
-      home_pred: Number(home),
-      away_pred: Number(away),
-      updated_at:
-        new Date().toISOString()
-    };
-
-    const { error } = await sb
-      .from("predictions")
-      .upsert(payload, {
-        onConflict: "user_id,fixture_id"
-      });
-
-    if (error) {
-      toast(error.message);
-      return;
-    }
-
-    predictions.set(
-      fixtureId,
-      payload
-    );
-
+    predictions.set(String(f.id),payload);
     toast("Prediction saved ✓");
     updateConfirmBar();
   }
 
-  function updateConfirmBar() {
-    const complete =
-      fixtures.length > 0 &&
-      fixtures.every((fixture) => {
-        const prediction =
-          predictions.get(
-            String(fixture.id)
-          );
+  async function toggleMatchPredictions(card,f){
+    const panel=card.querySelector(".match-picks-panel");
+    if(!panel)return;
 
-        return (
-          prediction &&
-          prediction.home_pred != null &&
-          prediction.away_pred != null
-        );
-      });
+    if(!panel.classList.contains("hidden")){panel.classList.add("hidden");return;}
 
-    if (confirmation) {
-      els.confirm.disabled = true;
-      els.confirm.textContent = "Locked ✓";
+    panel.classList.remove("hidden");
+    panel.innerHTML=`<div class="actual">Loading everyone's picks…</div>`;
 
-      els.confirmTitle.textContent =
-        `Matchweek ${currentMw} confirmed`;
+    const {data,error}=await sb.rpc("get_match_predictions",{p_fixture_id:Number(f.id)});
+    if(error){panel.innerHTML=`<div class="actual">${esc(error.message)}</div>`;return;}
+    if(!data?.length){panel.innerHTML=`<div class="actual">No predictions were saved for this match.</div>`;return;}
 
-      els.confirmText.textContent =
-        `Locked ${new Date(
-          confirmation.confirmed_at
-        ).toLocaleString()}. Your scorelines cannot be changed.`;
+    const maxPts=Math.max(...data.map(x=>x.current_points??-1));
+    const hasScore=f.home_score!=null&&f.away_score!=null;
 
-      els.banner.textContent =
-        "✓ Predictions confirmed and locked.";
+    panel.innerHTML=`<div style="border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
+      <div style="font-size:10px;letter-spacing:.12em;color:#8f9ab5;margin-bottom:8px">${f.status==="FINISHED"?"FINAL MATCH PICKS":"LIVE MATCH PICKS"}</div>
+      ${data.map(row=>{
+        const leader=hasScore&&row.current_points===maxPts;
+        return `<div style="display:grid;grid-template-columns:minmax(100px,1fr) 70px 90px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.055)">
+          <strong style="${leader?"color:#b8ff43":""}">${esc(row.display_name)}${leader?" ★":""}</strong>
+          <span style="text-align:center;font-weight:800">${row.home_pred}–${row.away_pred}</span>
+          <span style="text-align:right;color:${leader?"#b8ff43":"#c8cede"}">${row.current_points==null?"—":`${f.status==="FINISHED"?"":"~ "}${row.current_points} pts`}</span>
+        </div>`;
+      }).join("")}
+    </div>`;
+  }
 
+  function updateConfirmBar(){
+    const complete=fixtures.length>0&&fixtures.every(f=>{
+      if(Date.now()>=new Date(f.kickoff).getTime())return true;
+      const p=predictions.get(String(f.id));
+      return p&&p.home_pred!=null&&p.away_pred!=null;
+    });
+
+    if(confirmation){
+      els.confirm.disabled=true;els.confirm.textContent="Locked ✓";
+      els.confirmTitle.textContent=`Matchweek ${currentMw} confirmed`;
+      els.confirmText.textContent="Your remaining predictions are locked.";
+      els.banner.textContent="✓ Predictions confirmed and locked.";
       els.banner.classList.remove("hidden");
-    } else {
-      els.confirm.disabled = !complete;
-      els.confirm.textContent =
-        "Confirm predictions";
-
-      els.confirmTitle.textContent =
-        complete
-          ? "Ready to lock"
-          : "Predictions open";
-
-      els.confirmText.textContent =
-        complete
-          ? "Confirming will permanently lock this matchweek."
-          : "Complete every match, then confirm to lock this matchweek.";
-
+    }else{
+      els.confirm.disabled=!complete;els.confirm.textContent="Confirm predictions";
+      els.confirmTitle.textContent=complete?"Ready to lock":"Predictions open";
+      els.confirmText.textContent="Individual matches lock automatically at kickoff.";
       els.banner.classList.add("hidden");
     }
   }
 
-  async function confirmWeek() {
-    const accepted = confirm(
-      `Lock all Matchweek ${currentMw} predictions? You will not be able to edit them afterward.`
-    );
-
-    if (!accepted) return;
-
-    els.confirm.disabled = true;
-
-    const { error } = await sb.rpc(
-      "confirm_matchweek",
-      {
-        p_matchweek: currentMw
-      }
-    );
-
-    if (error) {
-      toast(error.message);
-      updateConfirmBar();
-      return;
-    }
-
-    toast(
-      `Matchweek ${currentMw} locked ✓`
-    );
-
+  async function confirmWeek(){
+    if(!confirm(`Lock all remaining Matchweek ${currentMw} predictions?`))return;
+    const {error}=await sb.rpc("confirm_matchweek",{p_matchweek:currentMw});
+    if(error){toast(error.message);return;}
+    toast(`Matchweek ${currentMw} locked ✓`);
     await loadWeek();
   }
 
-  async function loadLeaderboard() {
-    if (!sb) {
-      els.leaderboard.innerHTML = `
-        <div class="empty-card borderless">
-          Configure Supabase first.
-        </div>
-      `;
-      return;
-    }
+  async function loadLeaderboard(){
+    if(!sb||!els.leaderboard)return;
+    els.leaderboard.innerHTML=`<div class="empty-card borderless">Loading…</div>`;
+    const {data,error}=await sb.rpc("get_leaderboard");
+    if(error){els.leaderboard.innerHTML=`<div class="empty-card borderless">${esc(error.message)}</div>`;return;}
 
-    els.leaderboard.innerHTML = `
-      <div class="empty-card borderless">
-        Loading leaderboard…
-      </div>
-    `;
-
-    const { data, error } =
-      await sb.rpc("get_leaderboard");
-
-    if (error) {
-      els.leaderboard.innerHTML = `
-        <div class="empty-card borderless">
-          ${escapeHtml(error.message)}
-        </div>
-      `;
-      return;
-    }
-
-    if (!data?.length) {
-      els.leaderboard.innerHTML = `
-        <div class="empty-card borderless">
-          No scored matches yet.
-        </div>
-      `;
-      return;
-    }
-
-    els.leaderboard.innerHTML =
-      data
-        .map(
-          (row, index) => `
-            <div class="leader-row ${
-              index < 3 ? "top" : ""
-            }">
-
-              <span class="rank">
-                ${row.rank}
-              </span>
-
-              <span class="player-cell">
-                ${escapeHtml(
-                  row.display_name
-                )}
-
-                <small>
-                  ${row.matches_scored}
-                  scored ${
-                    row.matches_scored === 1
-                      ? "match"
-                      : "matches"
-                  }
-                </small>
-              </span>
-
-              <span class="points">
-                ${row.total_points}
-              </span>
-
-              <span>
-                ${row.exact_scores}
-              </span>
-
-              <span>
-                ${row.correct_outcomes}
-              </span>
-
-            </div>
-          `
-        )
-        .join("");
+    els.leaderboard.innerHTML=(data||[]).map((r,i)=>`
+      <div class="leader-row ${i<3?"top":""}">
+        <span class="rank">${r.rank}</span>
+        <span class="player-cell">${esc(r.display_name)}<small>${r.matches_scored} scored ${r.matches_scored===1?"match":"matches"}</small></span>
+        <span class="points">${r.total_points}</span><span>${r.exact_scores}</span><span>${r.correct_outcomes}</span>
+      </div>`).join("")||`<div class="empty-card borderless">No scored matches yet.</div>`;
   }
 
-  if (sb) {
-    sb.auth.onAuthStateChange(() => {
-      setTimeout(
-        refreshAuth,
-        0
-      );
-    });
-  }
-
+  if(sb)sb.auth.onAuthStateChange(()=>setTimeout(refreshAuth,0));
   refreshAuth();
 
-  // Auto-refresh current matchweek and leaderboard every 60 seconds
-  setInterval(async () => {
-    if (!user) return;
-
+  setInterval(async()=>{
+    if(!user)return;
     await loadWeek();
-
-    const leaderboardVisible =
-      !$("leaderboardView").classList.contains("hidden");
-
-    if (leaderboardVisible) {
-      await loadLeaderboard();
-    }
-  }, 60000);
+    if(!$("leaderboardView")?.classList.contains("hidden"))await loadLeaderboard();
+  },60000);
 })();
