@@ -83,17 +83,28 @@
 
 
   // ----------------------------------------------------------
-  // MATCHWEEK 5 BONANZA ANNOUNCEMENT
-  // Shows once on every page visit until ALL MW5 fixtures are FINISHED.
-  // The overlay blocks the page until the player closes it with X.
+  // MATCHWEEK 5 BONANZA / WINNER ANNOUNCEMENT
+  // Before MW5 finishes: show the Bonanza promotion.
+  // After MW5 finishes: show the winner(s) for about two weeks.
+  // Both overlays require X to continue.
   // ----------------------------------------------------------
   function removeBonanzaModal(){
     document.getElementById("bonanzaOverlay")?.remove();
     document.body.style.overflow="";
   }
 
-  function renderBonanzaModal(){
+  function showBonanzaOverlay({winnerMode=false,winners=[],mw5Points=null}={}){
     if(bonanzaDismissedThisPage || document.getElementById("bonanzaOverlay")) return;
+
+    const names=winners.map(x=>x.display_name).filter(Boolean);
+    const winnerText =
+      names.length===1
+        ? esc(names[0])
+        : names.length===2
+          ? `${esc(names[0])} & ${esc(names[1])}`
+          : names.length>2
+            ? `${names.slice(0,-1).map(esc).join(", ")} & ${esc(names[names.length-1])}`
+            : "Our Bonanza winner";
 
     const overlay=document.createElement("div");
     overlay.id="bonanzaOverlay";
@@ -104,95 +115,74 @@
     overlay.innerHTML=`
       <style>
         #bonanzaOverlay{
-          position:fixed;
-          inset:0;
-          z-index:99999;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          padding:22px;
-          background:rgba(3,8,19,.90);
-          backdrop-filter:blur(10px);
+          position:fixed;inset:0;z-index:99999;display:flex;align-items:center;
+          justify-content:center;padding:22px;background:rgba(3,8,19,.91);
+          backdrop-filter:blur(10px)
         }
         #bonanzaOverlay .bonanza-box{
-          position:relative;
-          width:min(720px,100%);
-          border:1px solid rgba(184,255,67,.35);
-          border-radius:24px;
-          padding:54px 34px 38px;
-          text-align:center;
-          background:
-            radial-gradient(circle at 50% 0%,rgba(184,255,67,.14),transparent 48%),
-            #0b1324;
-          box-shadow:0 24px 80px rgba(0,0,0,.55);
-          color:#eef3ff;
+          position:relative;width:min(760px,100%);border:1px solid rgba(184,255,67,.35);
+          border-radius:24px;padding:54px 34px 38px;text-align:center;
+          background:radial-gradient(circle at 50% 0%,rgba(184,255,67,.14),transparent 48%),#0b1324;
+          box-shadow:0 24px 80px rgba(0,0,0,.55);color:#eef3ff
         }
         #bonanzaOverlay .bonanza-close{
-          position:absolute;
-          top:15px;
-          right:16px;
-          width:44px;
-          height:44px;
-          border-radius:50%;
-          border:1px solid rgba(255,255,255,.17);
-          background:rgba(255,255,255,.07);
-          color:#fff;
-          font-size:27px;
-          line-height:1;
-          cursor:pointer;
+          position:absolute;top:15px;right:16px;width:44px;height:44px;border-radius:50%;
+          border:1px solid rgba(255,255,255,.17);background:rgba(255,255,255,.07);
+          color:#fff;font-size:27px;line-height:1;cursor:pointer
         }
         #bonanzaOverlay .bonanza-kicker{
-          display:inline-block;
-          margin-bottom:14px;
-          padding:7px 13px;
-          border-radius:999px;
-          background:rgba(184,255,67,.12);
-          color:#b8ff43;
-          font-size:12px;
-          font-weight:900;
-          letter-spacing:.16em;
+          display:inline-block;margin-bottom:14px;padding:7px 13px;border-radius:999px;
+          background:rgba(184,255,67,.12);color:#b8ff43;font-size:12px;font-weight:900;
+          letter-spacing:.16em
         }
         #bonanzaOverlay h2{
-          margin:0;
-          font-size:clamp(34px,7vw,66px);
-          line-height:.98;
-          letter-spacing:-.04em;
+          margin:0;font-size:clamp(34px,7vw,66px);line-height:.98;letter-spacing:-.04em
+        }
+        #bonanzaOverlay .bonanza-name{
+          margin:22px auto 8px;color:#b8ff43;font-size:clamp(34px,8vw,68px);
+          line-height:1;font-weight:950;overflow-wrap:anywhere
         }
         #bonanzaOverlay .bonanza-points{
-          margin:20px 0 10px;
-          color:#b8ff43;
-          font-size:clamp(46px,10vw,86px);
-          line-height:1;
-          font-weight:950;
+          margin:20px 0 10px;color:#b8ff43;font-size:clamp(46px,10vw,86px);
+          line-height:1;font-weight:950
         }
         #bonanzaOverlay .bonanza-copy{
-          max-width:560px;
-          margin:0 auto;
-          color:#b9c3d8;
-          font-size:17px;
-          line-height:1.55;
+          max-width:590px;margin:0 auto;color:#b9c3d8;font-size:17px;line-height:1.55
         }
         #bonanzaOverlay .bonanza-copy strong{color:#fff}
-        #bonanzaOverlay .bonanza-note{
-          margin-top:20px;
-          color:#7f8aa4;
-          font-size:12px;
-        }
+        #bonanzaOverlay .bonanza-note{margin-top:20px;color:#7f8aa4;font-size:12px}
       </style>
 
       <div class="bonanza-box">
-        <button class="bonanza-close" type="button" aria-label="Close bonanza announcement">×</button>
-        <div class="bonanza-kicker">SPECIAL ROUND</div>
-        <h2 id="bonanzaTitle">🎉 MATCHWEEK 5<br>BONANZA</h2>
-        <div class="bonanza-points">+10 PTS</div>
-        <p class="bonanza-copy">
-          Finish <strong>top of Matchweek 5</strong> and earn an extra
-          <strong>10 bonus points</strong> on the overall leaderboard.
-          If players tie for the highest Matchweek 5 score, every tied winner gets the bonus.
-        </p>
-        <div class="bonanza-note">
-          The bonus is awarded only after every Matchweek 5 fixture is finished.
-        </div>
+        <button class="bonanza-close" type="button" aria-label="Close announcement">×</button>
+
+        ${
+          winnerMode
+            ? `
+              <div class="bonanza-kicker">BONANZA WEEK 5 CHAMPION${names.length>1?"S":""}</div>
+              <h2 id="bonanzaTitle">🏆 CONGRATULATIONS!</h2>
+              <div class="bonanza-name">${winnerText}</div>
+              <p class="bonanza-copy">
+                ${names.length>1?"You finished joint top":"You finished top"} of Matchweek 5
+                ${mw5Points!=null?`with <strong>${mw5Points} normal points</strong>`:""}
+                and earned the <strong>+10 Bonanza bonus</strong> on the overall leaderboard.
+              </p>
+              <div class="bonanza-note">Matchweek 5 Bonanza complete 🎉</div>
+            `
+            : `
+              <div class="bonanza-kicker">SPECIAL ROUND</div>
+              <h2 id="bonanzaTitle">🎉 MATCHWEEK 5<br>BONANZA</h2>
+              <div class="bonanza-points">+10 PTS</div>
+              <p class="bonanza-copy">
+                Finish <strong>top of Matchweek 5</strong> and earn an extra
+                <strong>10 bonus points</strong> on the overall leaderboard.
+                If players tie for the highest Matchweek 5 score, every tied winner gets the bonus.
+              </p>
+              <div class="bonanza-note">
+                The bonus is awarded only after every Matchweek 5 fixture is finished.
+              </div>
+            `
+        }
       </div>
     `;
 
@@ -204,28 +194,46 @@
       bonanzaDismissedThisPage=true;
       removeBonanzaModal();
     });
-
     setTimeout(()=>close.focus(),0);
   }
 
   async function refreshBonanzaState(){
     if(!sb || !user) return;
 
-    const {data,error}=await sb
+    const {data:fixtures5,error:fixtureError}=await sb
       .from("fixtures")
       .select("id,status")
       .eq("matchweek",5);
 
-    if(error || !data?.length) return;
+    if(fixtureError || !fixtures5?.length) return;
 
-    const finished=data.every(f=>f.status==="FINISHED");
+    const finished=fixtures5.every(f=>f.status==="FINISHED");
 
-    if(finished){
+    if(!finished){
+      showBonanzaOverlay({winnerMode:false});
+      return;
+    }
+
+    // Once MW5 is complete, use the secure database function to get
+    // the winner(s), weekly score, and the date until which to display.
+    const {data,error}=await sb.rpc("get_mw5_bonanza_winners");
+    if(error || !data?.length){
       removeBonanzaModal();
       return;
     }
 
-    renderBonanzaModal();
+    const displayUntil=new Date(data[0].display_until);
+    if(Date.now() > displayUntil.getTime()){
+      removeBonanzaModal();
+      return;
+    }
+
+    const points=data[0].mw5_points;
+    showBonanzaOverlay({
+      winnerMode:true,
+      winners:data,
+      mw5Points:points
+    });
   }
 
   async function chooseCurrentMatchweek(){
